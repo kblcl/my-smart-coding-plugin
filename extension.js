@@ -9,28 +9,30 @@ const vscode = require('vscode');
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+    // 功能1：选中变量，插入 console.log
+    let insertLog = vscode.commands.registerCommand('my-ai-coder.insertLog', function () {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) { return; }
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "my-smart-coding-plugin" is now active!');
+        const document = editor.document;
+        const selection = editor.selection;
+        const selectedText = document.getText(selection); // 获取选中的文本
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with  registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('my-smart-coding-plugin.helloWorld', function () {
-		// The code you place here will be executed every time your command is executed
+        if (!selectedText) {
+            vscode.window.showWarningMessage('请先选中一个变量名！');
+            return;
+        }
 
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from my-smart-coding-plugin!');
-	});
+        // 构造 log 语句
+        const logStatement = `console.log('${selectedText}:', ${selectedText});`;
 
-	context.subscriptions.push(disposable);
+        // 插入到编辑器
+        editor.edit(editBuilder => {
+            editBuilder.replace(selection, logStatement);
+        });
+    });
+
+    context.subscriptions.push(insertLog);
 }
 
-// This method is called when your extension is deactivated
-function deactivate() {}
-
-module.exports = {
-	activate,
-	deactivate
-}
+module.exports = { activate };

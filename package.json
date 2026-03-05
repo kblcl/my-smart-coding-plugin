@@ -9,13 +9,30 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:my-ai-coder.insertLog"
+  ],
   "main": "./extension.js",
   "contributes": {
-    "commands": [{
-      "command": "my-smart-coding-plugin.helloWorld",
-      "title": "Hello World"
-    }]
+    "commands": [
+      {
+        "command": "my-smart-coding-plugin.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "my-ai-coder.insertLog",
+        "title": "AI: 插入 Console Log"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "my-ai-coder.insertLog",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "lint": "eslint .",
@@ -23,11 +40,15 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.108.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "eslint": "^9.39.2",
+    "@types/vscode": "^1.108.1",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.2"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "dotenv": "^17.3.1"
   }
 }
