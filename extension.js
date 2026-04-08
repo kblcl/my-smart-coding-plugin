@@ -1,9 +1,16 @@
 const vscode = require('vscode');
 const path = require('path');
+const axios = require('axios');
 
 // 1. 严格按协议引入两个核心模块
 const { getEditorContext } = require('./editorContext.js');
 const { generateRecommendedCode } = require('./completionModule.js');
+// 通义千问官方接口地址（固定值，无需修改）
+const BASE_URL = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
+// 调用的模型名称，可根据需求更换为 qwen-plus / qwen-max 等
+const MODEL_NAME = 'qwen-turbo';
+// 从.env文件加载的API密钥
+const API_KEY = process.env.AI_API_KEY;
 
 function activate(context) {
     // 加载环境变量（.env 里的 AI_API_KEY）
@@ -44,9 +51,43 @@ function activate(context) {
             vscode.window.showErrorMessage('请先在 .env 文件中配置 AI_API_KEY');
             return;
         }
-        // （这里可以保留你原来的通义千问解释代码逻辑，或者也用 completionModule 改造）
-        vscode.window.showInformationMessage('解释代码功能待集成 completionModule');
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "AI 正在分析代码..."
+        }, async () => {
+            try {
+                const prompt = `请用通俗易懂的语言解释以下代码的功能：\n${selectedCode}`;
+                console.log('正在调用通义千问 API...');
+                const response = await axios.post(
+                    BASE_URL,
+                    {
+                        model: MODEL_NAME,
+                        input: {
+                            messages: [{ role: 'user', content: prompt }]
+                        },
+                        parameters: {
+                            result_format: 'message'
+                        }
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${API_KEY}`,
+                            'Content-Type': 'application/json'
+                        }
+                    }
+                );
+                const aiAnswer = response.data.output.choices[0].message.content;
+                vscode.window.showInformationMessage(aiAnswer, { modal: true });
+            } catch (error) {
+                console.error('AI 调用失败:', error.response ? error.response.data : error.message);
+                const errorMsg = error.response ? 
+                    `AI 调用失败: ${error.response.status} - ${JSON.stringify(error.response.data)}` :
+                    `AI 调用失败: ${error.message}`;
+                vscode.window.showErrorMessage(errorMsg);
+            }
+        });
     });
+
 
     // -----------------------------------------------------------------------
     // 新增核心功能：AI 智能代码补全（上下文 + AI 结合）

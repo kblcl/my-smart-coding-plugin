@@ -28,7 +28,9 @@ Rules:
 - Never include anything outside the JSON object.
 - **When the function name indicates a well-known algorithm (e.g., bubble, quickSort, binarySearch, fibonacci, factorial, reverse, mergeSort), you MUST generate the standard implementation of that algorithm in the given language, using the provided parameter names.**
 - **If the code is in partial mode (cursor inside a function body), you must complete the function body with the appropriate logic, not just variable declarations.**
-- **Do not output placeholder or generic code like "// ..." – provide actual runnable code.**`;
+- **Do not output placeholder or generic code like "// ...", "# TODO", or "rest of code here" – provide actual runnable code.**
+- **For complex tasks (drawing, rendering, multi-step algorithms, data processing), break down the logic mentally first, then generate COMPLETE implementation with all necessary loops, calculations, and logic. Do not simplify or omit any steps.**
+- **Ensure the generated code is immediately executable without any manual modifications.**`;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +100,24 @@ function buildUserPrompt(contextData, candidateCount) {
   }
   prompt += algoHint;
 
+  // 检测复杂任务关键词，添加额外引导
+  const complexTaskKeywords = ['draw', 'render', 'plot', 'generate', 'create', 'build', 'paint', '画', '绘制', '生成', '创建'];
+  const isComplexTask = complexTaskKeywords.some(kw =>
+    (functionName && functionName.toLowerCase().includes(kw)) ||
+    (task && task.includes(kw))
+  );
+
+  if (isComplexTask) {
+    prompt += `\n⚠️ **复杂任务提示**：\n`;
+    prompt += `这是一个复杂的绘图/生成任务，请务必：\n`;
+    prompt += `1. 生成完整可运行的代码，包含所有必要的循环、坐标计算、颜色设置、参数配置\n`;
+    prompt += `2. 不要使用占位符（如 "// ...", "# TODO", "省略部分代码"）\n`;
+    prompt += `3. 如果需要多个步骤（如画多个图形），请全部实现，不要省略\n`;
+    prompt += `4. 确保代码可以直接运行，无需用户手动补充\n`;
+    prompt += `5. 仔细检查循环逻辑，确保循环体内的代码不会提前退出（如 return、break、exit 等）\n`;
+    prompt += `6. 对于绘图任务，确保所有图形都能正确绘制，不要在循环内调用退出函数\n\n`;
+  }
+
   prompt += "\n";
 
   if (partialCode) {
@@ -135,8 +155,9 @@ function buildUserPrompt(contextData, candidateCount) {
 
 function cleanCode(raw) {
   return raw
-    .replace(/^```[\w]*\n?/gm, "")
-    .replace(/^```$/gm, "")
+    .replace(/^```[\w]*\r?\n?/gm, "")
+    .replace(/\r?\n?```\s*$/g, "")
+    .replace(/^```\s*$/gm, "")
     .trim();
 }
 
@@ -168,15 +189,22 @@ function parseResponse(rawText, candidateCount) {
   try {
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    // 尝试用正则提取最外层 JSON 对象（避免 code 字段内的括号干扰计数）
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { candidates: [], error: "AI响应解析失败，返回内容无法识别" };
-    }
+    // 尝试修复 AI 常见的格式问题：candidates 数组缺少结束 ]
+    // 原始：...{ "code": "..." }\n} → 修复为：...{ "code": "..." }]\n}
+    const fixed = cleaned.replace(/(\})\s*(\})(\s*)$/, '$1]$2$3');
     try {
-      parsed = JSON.parse(jsonMatch[0]);
+      parsed = JSON.parse(fixed);
     } catch {
-      return { candidates: [], error: "AI响应解析失败，JSON格式错误" };
+      // 再尝试用正则提取最外层 JSON 对象
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return { candidates: [], error: "AI响应解析失败，返回内容无法识别" };
+      }
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        return { candidates: [], error: "AI响应解析失败，JSON格式错误" };
+      }
     }
   }
 
@@ -184,11 +212,15 @@ function parseResponse(rawText, candidateCount) {
     return { candidates: [], error: "AI响应解析失败，缺少candidates字段" };
   }
 
-  let candidates = parsed.candidates.map((c, i) => ({
-    id: i + 1,
-    code: cleanCode(String(c.code ?? "")),
-    description: normalizeDescription(String(c.description ?? "")),
-  }));
+  let candidates = parsed.candidates.map((c, i) => {
+    // JSON.parse 已自动处理 \n、\"等转义，直接清理 markdown 标记即可
+    const code = cleanCode(String(c.code ?? ""));
+    return {
+      id: i + 1,
+      code: code,
+      description: normalizeDescription(String(c.description ?? "")),
+    };
+  });
 
   if (candidates.length < candidateCount) {
     for (let i = candidates.length; i < candidateCount; i++) {
@@ -284,8 +316,8 @@ async function generateRecommendedCode(contextData, aiConfig) {
         input: { messages: messages },
         parameters: {
           result_format: "message",
-          max_tokens: 4096,
-          temperature: 0.6   
+          max_tokens: 8192,      // 提高到 8192，支持更长的复杂代码生成
+          temperature: 0.3       // 降低到 0.3，减少随机性，提升逻辑准确性
         }
       },
       {
@@ -293,7 +325,7 @@ async function generateRecommendedCode(contextData, aiConfig) {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
-        timeout: 30000  // 30秒超时
+        timeout: 300000
       }
     );
 
@@ -312,34 +344,5 @@ async function generateRecommendedCode(contextData, aiConfig) {
     return { candidates: [], error: mapApiError(error) };
   }
 }
-
-// ---------------------------------------------------------------------------
-// 测试示例（本地测试用）
-// ---------------------------------------------------------------------------
-// async function example() {
-//   // 测试场景：生成 Python 冒泡排序代码
-//   const contextDataFull = {
-//     language: "python", // 换语言测试
-//     task: "生成一个完整的冒泡排序函数，包含测试用例",
-//     mode: "full", // 完整代码模式
-//     fullCode: "", // 无现有代码
-//     cursorPosition: { line: 0, column: 0 },
-//     error: ""
-//   };
-
-//   const aiConfig = {
-//     candidateCount: 3, // 生成 3 个候选
-//     apiKey: process.env.AI_API_KEY,
-//     model: "qwen-turbo"
-//   };
-
-//   console.log("--- 测试完整代码生成（Python） ---");
-//   const result = await generateRecommendedCode(contextDataFull, aiConfig);
-//   console.log(JSON.stringify(result, null, 2));
-// }
-
-// 本地测试取消注释运行：node completionModule.js
-// 需要先设置环境变量 export DASHSCOPE_API_KEY="your-key"
-//example();
 
 module.exports = { generateRecommendedCode };
