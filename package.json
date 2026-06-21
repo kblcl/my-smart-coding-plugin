@@ -8,7 +8,7 @@
   },
   "main": "./extension.js",
   "categories": ["Other"],
-  "activationEvents": [],
+  "activationEvents": ["*"],
   "contributes": {
     "commands": [
       {
@@ -19,7 +19,6 @@
         "command": "my-smart-coding-plugin.explainCode",
         "title": "AI: 解释这段代码"
       },
-
       {
         "command": "my-smart-coding-plugin.smartComplete",
         "title": "AI: 智能代码补全"
@@ -27,6 +26,10 @@
       {
         "command": "my-smart-coding-plugin.testFullFlow",
         "title": "AI: 一键测试完整流程"
+      },
+      {
+        "command": "my-smart-coding-plugin.highlightDiff",
+        "title": "高亮补全差异"
       }
     ],
     "menus": {
@@ -41,13 +44,17 @@
           "when": "editorHasSelection",
           "group": "navigation"
         },
-
         {
           "command": "my-smart-coding-plugin.smartComplete",
           "group": "navigation"
         }
       ]
-    }
+    },
+    "inlineCompletionProviders": [
+      {
+        "language": "*"
+      }
+    ]
   },
   "dependencies": {
     "@babel/parser": "^7.29.2",

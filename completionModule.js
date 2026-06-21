@@ -26,6 +26,7 @@ Rules:
 - "description" must be written in Chinese (简体中文) and be 10–30 words long, explaining what the code does.
 - Always return exactly ${candidateCount} candidates, even if they are variations of the same idea.
 - Never include anything outside the JSON object.
+- 🚨 **CRITICAL**: Your output must be ONLY the new code to insert at cursor position. NEVER repeat the function name, parameters, or any control structures that already exist before the cursor.
 - **When the function name indicates a well-known algorithm (e.g., bubble, quickSort, binarySearch, fibonacci, factorial, reverse, mergeSort), you MUST generate the standard implementation of that algorithm in the given language, using the provided parameter names.**
 - **If the code is in partial mode (cursor inside a function body), you must complete the function body with the appropriate logic, not just variable declarations.**
 - **Do not output placeholder or generic code like "// ...", "# TODO", or "rest of code here" – provide actual runnable code.**
@@ -129,7 +130,7 @@ function buildUserPrompt(contextData, candidateCount) {
       prompt += `【强制规则】
 1. 你的代码必须插入在「光标前的代码」和「光标后的代码」之间；
 2. 必须和前后代码的语法、缩进、变量名、风格完全一致；
-3. 绝对不能重复前后已经存在的代码；
+3. 绝对不能重复前后已经存在的代码（尤其是函数名、参数列表、if/else/for/while 等控制结构）；
 4. 只返回需要插入的代码部分，不要把前后代码再包一遍。
 `;
       if (functionName && algorithmMap[functionName]) {
@@ -296,14 +297,13 @@ async function generateRecommendedCode(contextData, aiConfig) {
   const systemPrompt = buildSystemPrompt(candidateCount);
   const userPrompt = buildUserPrompt(contextData, candidateCount);
   // 将系统提示词放到 messages 的开头
-// 将系统提示词放到 messages 的开头
   const messages = [
     { role: "system", content: systemPrompt },
     { role: "user", content: userPrompt }
   ];
 
   // ======================
-  // 新增：打印完整请求，看 AI 到底收到了什么
+  // 打印完整请求，看 AI 到底收到了什么
   // ======================
   console.log('🔍 最终发给 AI 的完整消息：');
   console.log(JSON.stringify(messages, null, 2));
@@ -325,7 +325,7 @@ async function generateRecommendedCode(contextData, aiConfig) {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
-        timeout: 300000
+        timeout: 150000
       }
     );
 
@@ -336,9 +336,41 @@ async function generateRecommendedCode(contextData, aiConfig) {
     }
 
     const rawText = aiMessage.content;
-    console.log('AI原始返回内容：\n',rawText)
-    return parseResponse(rawText, candidateCount);
-  
+    console.log('AI原始返回内容：\n', rawText);
+
+    // 1. 解析 AI 响应
+    let result = parseResponse(rawText, candidateCount);
+
+    // 2. 后处理清洗：去除重复前缀（如果解析成功）
+    if (!result.error && result.candidates && result.candidates.length > 0) {
+      const beforeCursor = contextData.partialCode?.beforeCursor || '';
+      // 取光标所在行的内容（最后一行）
+      const lines = beforeCursor.split('\n');
+      const lastLine = lines[lines.length - 1] || '';
+      // 取最后一个单词（可能是函数名或变量名）
+      const lastWord = lastLine.trim().split(/\s+/).pop() || '';
+
+      result.candidates = result.candidates.map(c => {
+        let code = c.code;
+        // 如果代码以整行开头（如 "function factorial"），去掉
+        if (lastLine && code.startsWith(lastLine)) {
+          code = code.slice(lastLine.length);
+        }
+        // 如果代码以最后一个单词开头（如 "factorial"），去掉
+        if (lastWord && code.startsWith(lastWord)) {
+          code = code.slice(lastWord.length);
+        }
+        // 去除开头多余的空格和换行
+        code = code.trimStart();
+        // 如果清洗后为空，保留原值但加一个空格前缀（避免空补全）
+        if (!code) {
+          code = ' ' + c.code;
+        }
+        return { ...c, code };
+      });
+    }
+
+    return result;
 
   } catch (error) {
     return { candidates: [], error: mapApiError(error) };
