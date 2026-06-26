@@ -1,5 +1,29 @@
-node_modules
+# 插件依赖
+node_modules/
+package-lock.json
+
+# 密钥、环境配置
 .env
-.vscode-test
-out
-dist
+
+# VSCode 调试、编译产物
+.vscode-test/
+out/
+dist/
+.vscode/
+
+# 模型训练相关（权重、数据集、结果，体积巨大不上传github）
+finetune/adapters/
+finetune/*.bin
+finetune/*.pt
+finetune/*.pkl
+evaluation/
+evaluation_new/
+output/
+__pycache__/
+*.pyc
+tmp/
+*.log
+
+# 系统垃圾文件
+.DS_Store
+Thumbs.db

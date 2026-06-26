@@ -257,8 +257,12 @@ async function generateRecommendedCode(contextData, aiConfig) {
     return { candidates: [], error: `上下文错误：${contextData.error}` };
   }
 
-  const { candidateCount, apiKey, model = "qwen-turbo" } = aiConfig;
-  const baseURL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation";
+  const { candidateCount, apiKey, model = "qwen-turbo", endpoint } = aiConfig;
+  // 本地模式：使用 OpenAI 兼容格式
+  const isLocal = !!endpoint;
+  const baseURL = isLocal
+    ? `${endpoint.replace(/\/$/, '')}/v1/chat/completions`
+    : "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation";
 
   // 构建完整的用户消息（包含系统指令+用户提示）
   const systemPrompt = buildSystemPrompt(candidateCount);
@@ -277,28 +281,49 @@ async function generateRecommendedCode(contextData, aiConfig) {
   console.log(JSON.stringify(messages, null, 2));
 
   try {
-    const response = await axios.post(
-      baseURL,
-      {
-        model: model,
-        input: { messages: messages },
-        parameters: {
-          result_format: "message",
+    let response;
+    if (isLocal) {
+      // 本地模型：使用 OpenAI 兼容格式
+      response = await axios.post(
+        baseURL,
+        {
+          model: model,
+          messages: messages,
           max_tokens: 4096,
-          temperature: 0.6   
-        }
-      },
-      {
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json"
+          temperature: 0.6
         },
-        timeout: 30000  // 30秒超时
-      }
-    );
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 60000
+        }
+      );
+    } else {
+      // 通义千问云端 API
+      response = await axios.post(
+        baseURL,
+        {
+          model: model,
+          input: { messages: messages },
+          parameters: {
+            result_format: "message",
+            max_tokens: 4096,
+            temperature: 0.6   
+          }
+        },
+        {
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 30000
+        }
+      );
+    }
 
     // 通义千问返回格式解析
-    const aiMessage = response.data.output?.choices?.[0]?.message;
+    const aiMessage = isLocal
+      ? response.data?.choices?.[0]?.message
+      : response.data.output?.choices?.[0]?.message;
     if (!aiMessage || !aiMessage.content) {
       return { candidates: [], error: "AI返回空响应，未获取到任何内容" };
     }

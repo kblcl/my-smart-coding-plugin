@@ -1,0 +1,22 @@
+{
+  "datasets": [
+    {
+      "source_format": "mbpp",
+      "input_path": "evaluation/datasets/mbpp_test.jsonl",
+      "train_count": 30,
+      "test_count": 0
+    },
+    {
+      "source_format": "codecontests",
+      "input_path": "evaluation/datasets/codecontests.jsonl",
+      "train_count": 20,
+      "test_count": 0
+    },
+    {
+      "source_format": "humaneval",
+      "input_path": "evaluation/datasets/humaneval.jsonl",
+      "train_count": 50,
+      "test_count": 0
+    }
+  ]
+}

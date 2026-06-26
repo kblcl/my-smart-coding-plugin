@@ -1,14 +1,14 @@
 {
   "name": "my-smart-coding-plugin",
-  "displayName": "my-smart-coding-plugin",
-  "description": "HIT大一年度项目智能编码插件",
-  "version": "0.0.1",
+  "displayName": "HIT Smart Coder - 智能编码助手",
+  "description": "基于参数高效微调的VSCode智能编码助手插件 — HIT大一年度项目",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.108.1"
   },
   "main": "./extension.js",
-  "categories": ["Other"],
-  "activationEvents": [],
+  "categories": ["Other", "Education"],
+  "activationEvents": ["*"],
   "contributes": {
     "commands": [
       {
@@ -19,16 +19,55 @@
         "command": "my-smart-coding-plugin.explainCode",
         "title": "AI: 解释这段代码"
       },
-
       {
         "command": "my-smart-coding-plugin.smartComplete",
-        "title": "AI: 智能代码补全"
+        "title": "AI: 智能代码补全（多候选）"
       },
       {
         "command": "my-smart-coding-plugin.testFullFlow",
         "title": "AI: 一键测试完整流程"
+      },
+      {
+        "command": "my-smart-coding-plugin.highlightDiff",
+        "title": "高亮补全差异"
+      },
+      {
+        "command": "my-smart-coding-plugin.teachingGuide",
+        "title": "AI: 教学引导（根据当前设置模式）"
       }
     ],
+    "configuration": {
+      "title": "HIT Smart Coder",
+      "properties": {
+        "hitsmartcoder.completionMode": {
+          "type": "string",
+          "default": "standard",
+          "enum": ["standard", "hint", "scaffold", "explain"],
+          "enumDescriptions": [
+            "直接给出完整代码（默认，标准补全）",
+            "只给思路提示，不给代码（引导学生思考）",
+            "给出代码框架，核心逻辑留空让学生自己实现",
+            "讲解概念原理+分步思路+引导性问题"
+          ],
+          "description": "AI 补全模式：standard=标准补全, hint=纯提示, scaffold=框架填空, explain=讲解引导"
+        },
+        "hitsmartcoder.modelBackend": {
+          "type": "string",
+          "default": "cloud",
+          "enum": ["cloud", "local"],
+          "enumDescriptions": [
+            "使用通义千问云端 API（默认）",
+            "使用本地 LoRA 微调模型（需先启动 model_server.py）"
+          ],
+          "description": "模型推理后端：cloud=云端API, local=本地LoRA微调模型"
+        },
+        "hitsmartcoder.localEndpoint": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "本地模型服务地址（当 modelBackend=local 时使用）"
+        }
+      }
+    },
     "menus": {
       "editor/context": [
         {
@@ -41,13 +80,17 @@
           "when": "editorHasSelection",
           "group": "navigation"
         },
-
         {
           "command": "my-smart-coding-plugin.smartComplete",
           "group": "navigation"
         }
       ]
-    }
+    },
+    "inlineCompletionProviders": [
+      {
+        "language": "*"
+      }
+    ]
   },
   "dependencies": {
     "@babel/parser": "^7.29.2",
